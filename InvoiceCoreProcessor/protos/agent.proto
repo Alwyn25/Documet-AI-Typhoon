@@ -1,0 +1,21 @@
+
+syntax = "proto3";
+
+import "common.proto";
+import "datastore.proto"; // For ValidationStatus enum
+
+// Request to the validation agent. It contains the data to be validated.
+message ValidationRequest {
+    common.ExtractedInvoiceData extracted_data = 1;
+}
+
+// Result from the validation agent.
+message ValidationResult {
+    ValidationStatus validation_status = 1;
+    repeated string anomaly_flags = 2;
+}
+
+// The gRPC service definition for the Agent.
+service Agent {
+    rpc FlagAnomalies(ValidationRequest) returns (ValidationResult);
+}
