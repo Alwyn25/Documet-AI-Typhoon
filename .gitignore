@@ -144,6 +144,23 @@ ENV/
 env.bak/
 venv.bak/
 
+# Microservices - .env and venv in each service directory
+# Explicitly ignore .env files in microservice directories
+**/.env
+*/.env
+ingestion/.env
+ocr/.env
+schema_mapping/.env
+validation/.env
+
+# Explicitly ignore venv directories in microservice directories
+**/venv/
+*/venv/
+ingestion/venv/
+ocr/venv/
+schema_mapping/venv/
+validation/venv/
+
 # Spyder project settings
 .spyderproject
 .spyproject
