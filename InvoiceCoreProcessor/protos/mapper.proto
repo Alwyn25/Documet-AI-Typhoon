@@ -1,0 +1,17 @@
+
+syntax = "proto3";
+
+import "common.proto";
+
+// The gRPC service for mapping extracted invoice data to accounting schemas.
+service Mapper {
+    // Takes extracted data and returns a JSON string of the mapped schemas.
+    rpc MapSchema(common.ExtractedInvoiceData) returns (MappedSchema);
+}
+
+// Contains the mapped schemas as a JSON string.
+// Using a message wrapper allows for future extensions, like returning multiple formats.
+message MappedSchema {
+    string tallyprime_schema = 1; // JSON string for TallyPrime
+    string zoho_books_schema = 2; // JSON string for Zoho Books
+}

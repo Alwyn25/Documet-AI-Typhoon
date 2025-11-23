@@ -1,67 +1,147 @@
-from fastapi import FastAPI, HTTPException
-from contextlib import asynccontextmanager
-from datetime import datetime
-from InvoiceCoreProcessor.models.protocol import InvoiceIngestionRequest, ValidatedInvoiceRecord
-from InvoiceCoreProcessor.core.workflow import create_invoice_workflow, InvoiceGraphState
-from InvoiceCoreProcessor.core.database import init_pool, close_pool
 
-# --- App Lifecycle Management ---
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Initialize the database connection pool on startup
-    print("--- Initializing database connection pool ---")
-    init_pool()
-    yield
-    # Close the database connection pool on shutdown
-    print("--- Closing database connection pool ---")
-    close_pool()
+import uuid
+from typing import TypedDict, Optional
+from contextlib import contextmanager
 
-app = FastAPI(
-    title="SelfContainedInvoiceProcessor",
-    description="A secure, scalable, monolithic A2A module for automated invoice processing.",
-    lifespan=lifespan
+from fastapi import FastAPI, Request
+from pydantic import BaseModel
+from langgraph.graph import StateGraph, END
+
+from .models import ExtractedInvoiceData, MappedSchema, ValidationResult, ValidatedInvoiceRecord, StoreRequest
+from .mcp_client import MCPClient
+
+# --- FastAPI App ---
+app = FastAPI()
+
+class InvoiceIngestionRequest(BaseModel):
+    raw_file_ref: str
+    user_id: str
+
+# --- LangGraph State Definition ---
+class GraphState(TypedDict):
+    ingestion_request: dict
+    raw_file_ref: str
+    extracted_data: ExtractedInvoiceData
+    mapped_schema: MappedSchema
+    validation_result: ValidationResult
+    final_status: str
+    # The gRPC client is now part of the shared state
+    mcp_client: MCPClient
+
+# --- LangGraph Nodes (Now using the client from state) ---
+def upload_and_extract(state: GraphState) -> GraphState:
+    print("--- Node: Upload & Extract ---")
+    request = state['ingestion_request']
+    state['raw_file_ref'] = request['raw_file_ref']
+
+    # MOCK DATA
+    extracted_data = ExtractedInvoiceData(
+        invoice_no=f"INV-{uuid.uuid4().hex[:6]}",
+        vendor_gstin="GSTIN-ABC-123",
+        total_amount=1150.75 if "high_value" not in request['raw_file_ref'] else 20000.0,
+        item_details=[
+            {"item_description": "Product A", "unit_price": 500.0, "quantity": 2},
+            {"item_description": "Service B", "unit_price": 150.75, "quantity": 1}
+        ],
+        confidence_score=0.97
+    )
+    state['extracted_data'] = extracted_data
+    print(f"  - Extracted Invoice No: {extracted_data.invoice_no}")
+    return state
+
+def schema_mapping(state: GraphState) -> GraphState:
+    print("--- Node: Schema Mapping ---")
+    client = state['mcp_client']
+    mapped_schema = client.call_mapper(state['extracted_data'])
+    if mapped_schema:
+        state['mapped_schema'] = mapped_schema
+        print("  - Successfully mapped schema.")
+    else:
+        raise ConnectionError("Failed to map schema.")
+    return state
+
+def validation_flagging(state: GraphState) -> GraphState:
+    print("--- Node: Validation & Flagging ---")
+    client = state['mcp_client']
+    validation_result = client.call_agent(state['extracted_data'])
+    if validation_result:
+        state['validation_result'] = validation_result
+        print(f"  - Validation Status: {validation_result.validation_status}")
+        print(f"  - Anomaly Flags: {validation_result.anomaly_flags}")
+    else:
+        raise ConnectionError("Failed to get validation result.")
+    return state
+
+def data_integration(state: GraphState) -> GraphState:
+    print("--- Node: Data Integration ---")
+    client = state['mcp_client']
+    validated_record = ValidatedInvoiceRecord(
+        extracted_data=state['extracted_data'],
+        validation_status=state['validation_result'].validation_status,
+        anomaly_flags=state['validation_result'].anomaly_flags,
+        accounting_system_schema=state['mapped_schema'].model_dump_json()
+    )
+    store_request = StoreRequest(
+        validated_record=validated_record,
+        raw_file_ref=state['raw_file_ref']
+    )
+    result = client.call_datastore(store_request)
+    if result and result.success:
+        state['final_status'] = "SUCCESS: Invoice processed and stored."
+        print(f"  - {result.message}")
+    else:
+        state['final_status'] = "ERROR: Failed to store invoice."
+    return state
+
+def manual_review_queue(state: GraphState) -> GraphState:
+    print("--- Node: Manual Review ---")
+    status = "ANOMALY: Invoice flagged for manual review."
+    flags = state['validation_result'].anomaly_flags
+    state['final_status'] = f"{status} Flags: {flags}"
+    print(f"  - {state['final_status']}")
+    return state
+
+# --- Conditional Logic ---
+def should_send_for_review(state: GraphState) -> str:
+    print("--- Edge: Checking validation status... ---")
+    validation_status = state['validation_result'].validation_status
+    if validation_status == 'SUCCESS':
+        return "continue_to_integration"
+    else:
+        return "send_to_review"
+
+# --- Graph Definition & Compilation ---
+workflow = StateGraph(GraphState)
+workflow.add_node("UploadAndExtract", upload_and_extract)
+workflow.add_node("SchemaMapping", schema_mapping)
+workflow.add_node("ValidationFlagging", validation_flagging)
+workflow.add_node("DataIntegration", data_integration)
+workflow.add_node("ManualReviewQueue", manual_review_queue)
+workflow.set_entry_point("UploadAndExtract")
+workflow.add_edge("UploadAndExtract", "SchemaMapping")
+workflow.add_edge("SchemaMapping", "ValidationFlagging")
+workflow.add_conditional_edges(
+    "ValidationFlagging",
+    should_send_for_review,
+    {"continue_to_integration": "DataIntegration", "send_to_review": "ManualReviewQueue"}
 )
+workflow.add_edge("DataIntegration", END)
+workflow.add_edge("ManualReviewQueue", END)
+app_graph = workflow.compile()
 
-# Compile the LangGraph workflow once at startup
-invoice_workflow = create_invoice_workflow()
-
-@app.post("/invoice/upload", response_model=ValidatedInvoiceRecord)
-async def start_langgraph_workflow(request: InvoiceIngestionRequest):
+# --- API Endpoint with Efficient Client Handling ---
+@app.post("/invoice/upload")
+async def upload_invoice(request: InvoiceIngestionRequest):
     """
-    Starts the independent invoice processing pipeline.
+    Starts the invoice processing pipeline, managing the gRPC client lifecycle efficiently.
     """
-    # 1. Create the initial state for the workflow
-    initial_record = ValidatedInvoiceRecord(
-        upload_timestamp=datetime.utcnow(),
-        extracted_data=None, # This is now optional
-        file_id=request.raw_file_ref
-    )
-
-    initial_state = InvoiceGraphState(
-        record=initial_record,
-        review_needed=False
-    )
-
-    # 2. Run the LangGraph workflow
+    client = MCPClient()
     try:
-        final_state = invoice_workflow.invoke(initial_state)
-        return final_state['record']
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Workflow failed: {str(e)}")
-
-
-@app.get("/report/summary")
-async def generate_dashboard():
-    """
-    Retrieves the summary dashboard data from Report AI and PostgreSQL.
-    (This is a mock implementation)
-    """
-    return {
-        "total_invoices_processed": 1250,
-        "invoices_in_review": 15,
-        "total_amount_processed": 750000.00,
-        "success_rate": "98.8%",
-    }
-
-# To run this application:
-# uvicorn InvoiceCoreProcessor.main:app --reload
+        inputs = {
+            "ingestion_request": request.model_dump(),
+            "mcp_client": client  # Pass the single client instance into the graph
+        }
+        final_state = app_graph.invoke(inputs)
+        return {"status": "Workflow completed", "final_state": final_state['final_status']}
+    finally:
+        client.close() # Ensure the client is closed after the request is complete
