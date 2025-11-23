@@ -1,14 +1,20 @@
 
 import uuid
-from typing import TypedDict, Optional
+from typing import TypedDict
 from contextlib import contextmanager
+import os
+from dotenv import load_dotenv
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from pydantic import BaseModel
 from langgraph.graph import StateGraph, END
+import uvicorn
 
 from .models import ExtractedInvoiceData, MappedSchema, ValidationResult, ValidatedInvoiceRecord, StoreRequest
 from .mcp_client import MCPClient
+
+# Load environment variables
+load_dotenv()
 
 # --- FastAPI App ---
 app = FastAPI()
@@ -25,26 +31,15 @@ class GraphState(TypedDict):
     mapped_schema: MappedSchema
     validation_result: ValidationResult
     final_status: str
-    # The gRPC client is now part of the shared state
     mcp_client: MCPClient
 
-# --- LangGraph Nodes (Now using the client from state) ---
+# --- LangGraph Nodes ---
+# ... (Node definitions remain the same)
 def upload_and_extract(state: GraphState) -> GraphState:
     print("--- Node: Upload & Extract ---")
     request = state['ingestion_request']
     state['raw_file_ref'] = request['raw_file_ref']
-
-    # MOCK DATA
-    extracted_data = ExtractedInvoiceData(
-        invoice_no=f"INV-{uuid.uuid4().hex[:6]}",
-        vendor_gstin="GSTIN-ABC-123",
-        total_amount=1150.75 if "high_value" not in request['raw_file_ref'] else 20000.0,
-        item_details=[
-            {"item_description": "Product A", "unit_price": 500.0, "quantity": 2},
-            {"item_description": "Service B", "unit_price": 150.75, "quantity": 1}
-        ],
-        confidence_score=0.97
-    )
+    extracted_data = ExtractedInvoiceData(invoice_no=f"INV-{uuid.uuid4().hex[:6]}", vendor_gstin="GSTIN-ABC-123", total_amount=1150.75 if "high_value" not in request['raw_file_ref'] else 20000.0, item_details=[{"item_description": "Product A", "unit_price": 500.0, "quantity": 2}, {"item_description": "Service B", "unit_price": 150.75, "quantity": 1}], confidence_score=0.97)
     state['extracted_data'] = extracted_data
     print(f"  - Extracted Invoice No: {extracted_data.invoice_no}")
     return state
@@ -75,16 +70,8 @@ def validation_flagging(state: GraphState) -> GraphState:
 def data_integration(state: GraphState) -> GraphState:
     print("--- Node: Data Integration ---")
     client = state['mcp_client']
-    validated_record = ValidatedInvoiceRecord(
-        extracted_data=state['extracted_data'],
-        validation_status=state['validation_result'].validation_status,
-        anomaly_flags=state['validation_result'].anomaly_flags,
-        accounting_system_schema=state['mapped_schema'].model_dump_json()
-    )
-    store_request = StoreRequest(
-        validated_record=validated_record,
-        raw_file_ref=state['raw_file_ref']
-    )
+    validated_record = ValidatedInvoiceRecord(extracted_data=state['extracted_data'], validation_status=state['validation_result'].validation_status, anomaly_flags=state['validation_result'].anomaly_flags, accounting_system_schema=state['mapped_schema'].model_dump_json())
+    store_request = StoreRequest(validated_record=validated_record, raw_file_ref=state['raw_file_ref'])
     result = client.call_datastore(store_request)
     if result and result.success:
         state['final_status'] = "SUCCESS: Invoice processed and stored."
@@ -101,14 +88,9 @@ def manual_review_queue(state: GraphState) -> GraphState:
     print(f"  - {state['final_status']}")
     return state
 
-# --- Conditional Logic ---
 def should_send_for_review(state: GraphState) -> str:
     print("--- Edge: Checking validation status... ---")
-    validation_status = state['validation_result'].validation_status
-    if validation_status == 'SUCCESS':
-        return "continue_to_integration"
-    else:
-        return "send_to_review"
+    return "continue_to_integration" if state['validation_result'].validation_status == 'SUCCESS' else "send_to_review"
 
 # --- Graph Definition & Compilation ---
 workflow = StateGraph(GraphState)
@@ -120,28 +102,24 @@ workflow.add_node("ManualReviewQueue", manual_review_queue)
 workflow.set_entry_point("UploadAndExtract")
 workflow.add_edge("UploadAndExtract", "SchemaMapping")
 workflow.add_edge("SchemaMapping", "ValidationFlagging")
-workflow.add_conditional_edges(
-    "ValidationFlagging",
-    should_send_for_review,
-    {"continue_to_integration": "DataIntegration", "send_to_review": "ManualReviewQueue"}
-)
+workflow.add_conditional_edges("ValidationFlagging", should_send_for_review, {"continue_to_integration": "DataIntegration", "send_to_review": "ManualReviewQueue"})
 workflow.add_edge("DataIntegration", END)
 workflow.add_edge("ManualReviewQueue", END)
 app_graph = workflow.compile()
 
-# --- API Endpoint with Efficient Client Handling ---
+# --- API Endpoint ---
 @app.post("/invoice/upload")
 async def upload_invoice(request: InvoiceIngestionRequest):
-    """
-    Starts the invoice processing pipeline, managing the gRPC client lifecycle efficiently.
-    """
     client = MCPClient()
     try:
-        inputs = {
-            "ingestion_request": request.model_dump(),
-            "mcp_client": client  # Pass the single client instance into the graph
-        }
+        inputs = {"ingestion_request": request.model_dump(), "mcp_client": client}
         final_state = app_graph.invoke(inputs)
         return {"status": "Workflow completed", "final_state": final_state['final_status']}
     finally:
-        client.close() # Ensure the client is closed after the request is complete
+        client.close()
+
+# --- Server Startup ---
+if __name__ == "__main__":
+    host = os.getenv("APP_HOST", "0.0.0.0")
+    port = int(os.getenv("APP_PORT", "8080"))
+    uvicorn.run(app, host=host, port=port)

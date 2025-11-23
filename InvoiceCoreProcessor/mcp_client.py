@@ -1,6 +1,8 @@
 
 import grpc
 import json
+import os
+from dotenv import load_dotenv
 
 from .generated import (
     mapper_pb2, mapper_pb2_grpc,
@@ -14,31 +16,42 @@ from .models import (
 )
 from google.protobuf.json_format import ParseDict, MessageToDict
 
+# Load environment variables from .env file
+load_dotenv()
+
 class MCPClient:
     """
     A gRPC client that interacts with the microservices.
     It handles the conversion between internal Pydantic models and external Protobuf messages.
     """
     def __init__(self):
-        self.mapper_channel = grpc.insecure_channel('localhost:50051')
-        self.agent_channel = grpc.insecure_channel('localhost:50052')
-        self.datastore_channel = grpc.insecure_channel('localhost:50053')
+        # Read service configurations from environment variables
+        mapper_host = os.getenv("MAPPER_SERVICE_HOST", "localhost")
+        mapper_port = os.getenv("MAPPER_SERVICE_PORT", "50051")
+        agent_host = os.getenv("AGENT_SERVICE_HOST", "localhost")
+        agent_port = os.getenv("AGENT_SERVICE_PORT", "50052")
+        datastore_host = os.getenv("DATASTORE_SERVICE_HOST", "localhost")
+        datastore_port = os.getenv("DATASTORE_SERVICE_PORT", "50053")
+
+        mapper_address = f"{mapper_host}:{mapper_port}"
+        agent_address = f"{agent_host}:{agent_port}"
+        datastore_address = f"{datastore_host}:{datastore_port}"
+
+        self.mapper_channel = grpc.insecure_channel(mapper_address)
+        self.agent_channel = grpc.insecure_channel(agent_address)
+        self.datastore_channel = grpc.insecure_channel(datastore_address)
 
         self.mapper_stub = mapper_pb2_grpc.MapperStub(self.mapper_channel)
         self.agent_stub = agent_pb2_grpc.AgentStub(self.agent_channel)
         self.datastore_stub = datastore_pb2_grpc.DataStoreStub(self.datastore_channel)
-        print("MCPClient: gRPC channels initialized.")
+        print(f"MCPClient: gRPC channels initialized for Mapper ({mapper_address}), Agent ({agent_address}), and DataStore ({datastore_address}).")
 
     def call_mapper(self, extracted_data: ExtractedInvoiceData) -> MappedSchema:
         print("MCPClient: Calling Mapper service...")
         try:
             proto_request = common_pb2.ExtractedInvoiceData()
-            # Convert Pydantic model to dict, then to Protobuf
             ParseDict(extracted_data.model_dump(), proto_request)
-
             proto_response = self.mapper_stub.MapSchema(proto_request)
-
-            # Convert Protobuf response back to Pydantic model
             return MappedSchema(
                 tallyprime_schema=json.loads(proto_response.tallyprime_schema),
                 zoho_books_schema=json.loads(proto_response.zoho_books_schema)
@@ -53,13 +66,9 @@ class MCPClient:
             proto_extracted_data = common_pb2.ExtractedInvoiceData()
             ParseDict(extracted_data.model_dump(), proto_extracted_data)
             proto_request = agent_pb2.ValidationRequest(extracted_data=proto_extracted_data)
-
             proto_response = self.agent_stub.FlagAnomalies(proto_request)
-
             response_dict = MessageToDict(proto_response, preserving_proto_field_name=True)
-            # The enum value needs to be converted to a string for Pydantic
             response_dict['validation_status'] = datastore_pb2.ValidationStatus.Name(proto_response.validation_status)
-
             return ValidationResult.model_validate(response_dict)
         except grpc.RpcError as e:
             print(f"MCPClient: Error calling Agent service: {e.status()}")
@@ -69,13 +78,10 @@ class MCPClient:
         print("MCPClient: Calling DataStore service...")
         try:
             proto_request = datastore_pb2.StoreRequest()
-            # Convert the Pydantic model to a dict, carefully handling nested models and enums
             store_dict = store_request.model_dump()
             store_dict['validated_record']['validation_status'] = datastore_pb2.ValidationStatus.Value(store_dict['validated_record']['validation_status'])
             ParseDict(store_dict, proto_request)
-
             proto_response = self.datastore_stub.StoreValidatedInvoice(proto_request)
-
             return StoreResult.model_validate(MessageToDict(proto_response, preserving_proto_field_name=True))
         except grpc.RpcError as e:
             print(f"MCPClient: Error calling DataStore service: {e.status()}")
