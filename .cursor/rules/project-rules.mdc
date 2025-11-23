@@ -1,0 +1,240 @@
+---
+description: Core project rules and standards for PromptCraft development
+alwaysApply: true
+---
+
+# PromptCraft Project Rules
+
+## Architecture & Framework Decisions
+
+### Frontend
+- **Must Use**: Next.js 14+ for all UI development
+- **Component Library**: Custom Shadcn-style components built on Radix UI
+- **State Management**: Zustand for global state, useState for local state
+- **Styling**: Tailwind CSS with utility-first approach
+- **Icons**: Lucide React exclusively
+- **Routing**: Wouter for client-side, Next.js App Router for SSR
+
+### Backend
+- **Must Use**: Python with FastAPI for all backend development
+- **Workflow Engine**: LangGraph for AI workflows
+- **Validation**: Pydantic models everywhere
+- **Database**: PostgreSQL (production), SQLite (development)
+- **File Storage**: Azure Blob Storage (production), Local filesystem (development)
+
+## Code Organization
+
+### Directory Structure
+- Follow established directory patterns in TECHNICAL-DOCUMENTATION.md
+- Separate concerns: components, pages, lib, stores, hooks
+- One component per file
+- Group related components in folders
+- Co-locate tests with source files
+
+### File Naming
+- **Components**: PascalCase (e.g., `GuidedRunWizard.jsx`)
+- **Hooks**: camelCase with `use` prefix (e.g., `useToast.js`)
+- **Utilities**: camelCase (e.g., `utils.js`)
+- **Stores**: camelCase with `use` prefix (e.g., `useAppStore.js`)
+- **Constants**: UPPER_SNAKE_CASE (e.g., `MAX_FILE_SIZE`)
+
+## Development Standards
+
+### Code Quality
+- Write self-documenting code with clear variable names
+- Keep components under 300 lines
+- Extract complex logic into helper functions or hooks
+- Use descriptive commit messages
+- Follow single responsibility principle
+
+### State Management Hierarchy
+1. **localStorage**: Form auto-save, user preferences
+2. **useState**: Component-local UI state
+3. **Zustand**: Cross-component global state
+4. **TanStack Query**: Server state and caching
+
+### Validation
+- Client-side validation with custom validation engine
+- Server-side validation with Pydantic
+- Real-time feedback on form inputs
+- Comprehensive error messages
+- Prevent invalid submissions
+
+### Error Handling
+- Use toast notifications for user-facing errors
+- Log errors to console in development
+- Implement error boundaries for critical sections
+- Return proper HTTP status codes in APIs
+- Never expose internal error details to users
+
+### Styling Guidelines
+- Use Tailwind utility classes exclusively
+- Avoid inline styles unless absolutely necessary
+- Use `cn()` utility for conditional classes
+- Follow mobile-first responsive design
+- Use design tokens from CSS variables
+- Maintain consistent spacing and typography
+
+### API Design
+- RESTful routes with clear HTTP verbs
+- Consistent response format: `{ ok: boolean, data?: any, error?: string }`
+- Proper status codes (200, 201, 400, 401, 404, 500)
+- Pydantic models for request/response validation
+- Async/await for all async operations
+
+## Testing Requirements
+
+### Frontend
+- Test critical user flows manually
+- Validate component rendering
+- Check responsive design breakpoints
+- Verify form validation and error states
+
+### Backend
+- Unit tests for business logic
+- Integration tests for API endpoints
+- Validate Pydantic models
+- Test error handling paths
+
+## Documentation
+
+### Code Documentation
+- Document complex functions with comments
+- Keep docstrings up to date
+- Reference architecture decisions
+- Add TODOs for known issues
+
+### Project Documentation
+- Update TECHNICAL-DOCUMENTATION.md when patterns change
+- Keep API specifications current
+- Document validation rules
+- Maintain workflow diagrams
+
+## Security
+
+### Data Protection
+- Never commit secrets or API keys
+- Use environment variables for configuration
+- Validate all user inputs
+- Sanitize outputs
+- Implement rate limiting
+
+### File Uploads
+- Validate file types and sizes
+- Store files securely
+- Generate unique filenames
+- Implement virus scanning (production)
+
+## Performance
+
+### Frontend
+- Implement code splitting
+- Lazy load heavy components
+- Optimize images and assets
+- Use React.memo for expensive components
+- Minimize re-renders
+
+### Backend
+- Use async operations efficiently
+- Implement database query optimization
+- Cache frequently accessed data
+- Monitor API response times
+- Profile performance bottlenecks
+
+## Git Workflow
+
+### Branching
+- Main branch: production-ready code
+- Feature branches: new functionality
+- Descriptive branch names: `feature/loan-validation` or `fix/emi-calculation`
+
+### Commits
+- Atomic commits with clear messages
+- Use conventional commit format: `type: description`
+- Examples: `feat: add loan validation`, `fix: correct EMI calculation`, `docs: update API spec`
+
+### Pull Requests
+- Code review required before merge
+- All tests must pass
+- Documentation updated if needed
+- PR description explains changes and context
+
+## Deployment
+
+### Environment Configuration
+- Development: Local with mocked data
+- Staging: Production-like with test data
+- Production: Real databases and services
+
+### Environment Variables
+- Never hardcode configuration
+- Use .env files for local development
+- Document all required environment variables
+- Use secure secret management in production
+
+## Dependency Management
+
+### Adding Dependencies
+- Justify new dependencies
+- Check for security vulnerabilities
+- Keep dependencies up to date
+- Use exact versions where critical
+
+### Preferred Libraries
+- Use established, maintained libraries
+- Prefer libraries with good documentation
+- Consider bundle size impact
+- Avoid duplicate functionality
+
+## Accessibility
+
+### WCAG Compliance
+- Provide alt text for images
+- Use semantic HTML
+- Ensure keyboard navigation
+- Maintain proper focus order
+- Support screen readers
+
+### User Experience
+- Provide loading states
+- Show progress indicators
+- Implement error recovery
+- Give clear feedback on actions
+
+## Monitoring & Observability
+
+### Logging
+- Log important events and errors
+- Use structured logging
+- Avoid logging sensitive information
+- Implement log rotation
+
+### Metrics
+- Track key business metrics
+- Monitor performance indicators
+- Set up alerts for critical failures
+- Analyze user behavior patterns
+
+## AI/ML Integration
+
+### Workflow Execution
+- Use LangGraph for complex workflows
+- Implement proper state management
+- Add checkpoints for long-running processes
+- Provide progress updates to users
+
+### Data Extraction
+- Use OpenAI GPT-4 for document parsing
+- Implement Typhoon OCR for image processing
+- Validate extracted data confidence scores
+- Fall back to manual review when needed
+
+### Decision Making
+- Explainable AI decisions
+- Log all decision rationale
+- Allow manual overrides
+- Track decision accuracy
+
+---
+
+**Enforcement**: These rules guide all development decisions. Deviations require justification and team approval.

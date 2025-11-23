@@ -1,0 +1,4 @@
+---
+description: Backend development work must use Python, employing FastAPI and LangGraph frameworks, with a focus on modular architecture and scalable design patterns. Avoid backend implementations in other languages or frameworks unless specifically requested.
+alwaysApply: false
+---

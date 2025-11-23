@@ -1,0 +1,4 @@
+---
+description: For all code-running tasks, use PowerShell commands and scripts unless otherwise specified in the conversation.
+alwaysApply: false
+---
