@@ -3,9 +3,14 @@ import grpc
 from concurrent import futures
 import time
 import json
+import os
+from dotenv import load_dotenv
 
 from ...generated import datastore_pb2, datastore_pb2_grpc, common_pb2
 from google.protobuf.json_format import MessageToJson
+
+# Load environment variables
+load_dotenv()
 
 # Mock database connections
 IN_MEMORY_POSTGRES = {}
@@ -35,11 +40,15 @@ class DataStoreService(datastore_pb2_grpc.DataStoreServicer):
         )
 
 def serve():
+    host = os.getenv("DATASTORE_SERVICE_HOST", "localhost")
+    port = os.getenv("DATASTORE_SERVICE_PORT", "50053")
+    bind_address = f"{host}:{port}"
+
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     datastore_pb2_grpc.add_DataStoreServicer_to_server(DataStoreService(), server)
-    server.add_insecure_port('[::]:50053')
+    server.add_insecure_port(bind_address)
     server.start()
-    print("DataStore gRPC server started on port 50053")
+    print(f"DataStore gRPC server started on {bind_address}")
     try:
         while True:
             time.sleep(86400)
