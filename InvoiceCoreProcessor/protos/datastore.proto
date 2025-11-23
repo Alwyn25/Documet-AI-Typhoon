@@ -1,0 +1,36 @@
+
+syntax = "proto3";
+
+import "common.proto";
+
+// Enum for validation status, also used by the Agent service.
+enum ValidationStatus {
+    SUCCESS = 0;
+    ANOMALY = 1;
+    ERROR = 2;
+}
+
+// The final, validated record that will be stored.
+message ValidatedInvoiceRecord {
+    common.ExtractedInvoiceData extracted_data = 1;
+    ValidationStatus validation_status = 2;
+    repeated string anomaly_flags = 3;
+    string accounting_system_schema = 4; // JSON string
+}
+
+// The request message for the DataStore service.
+message StoreRequest {
+    ValidatedInvoiceRecord validated_record = 1;
+    string raw_file_ref = 2;
+}
+
+// The response message from the DataStore service.
+message StoreResult {
+    bool success = 1;
+    string message = 2;
+}
+
+// The gRPC service definition for the DataStore.
+service DataStore {
+    rpc StoreValidatedInvoice(StoreRequest) returns (StoreResult);
+}

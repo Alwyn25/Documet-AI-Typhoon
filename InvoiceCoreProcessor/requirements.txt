@@ -1,8 +1,17 @@
+# Core Frameworks
 fastapi
 uvicorn
 pydantic
+pydantic-settings
 langgraph
-python-dotenv
-# a2a-sdk - Placeholder, will assume it's installed or add specific packages if needed
-psycopg2-binary
-pymongo
+
+# gRPC dependencies for high-performance communication (MCP)
+grpcio
+grpcio-tools
+
+# OCR/Document Libraries
+pdfplumber
+python-docx
+# External dependencies must be installed:
+# pytesseract
+# easyocr
