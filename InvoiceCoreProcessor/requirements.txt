@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+pydantic
+langgraph
+python-dotenv
+# a2a-sdk - Placeholder, will assume it's installed or add specific packages if needed
+psycopg2-binary
+pymongo
