@@ -1,64 +1,48 @@
-# InvoiceCoreProcessor - Ingestion Service
+# InvoiceCoreProcessor Module
 
-This project is the first step in building a distributed invoice processing system. It currently consists of a **FastAPI Orchestrator** and a backend **gRPC Ingestion Agent**.
+This repository contains the `InvoiceCoreProcessor`, a self-contained, high-performance module for automated invoice processing, built on an **MCP-Agentic Architecture** orchestrated by LangGraph.
 
 ## 1. Architecture
-
-The current architecture is a simple, two-service system:
--   **FastAPI Orchestrator**: Exposes a public REST API (`/invoice/upload`) and manages the business workflow using LangGraph.
--   **Ingestion Agent (gRPC)**: A microservice responsible for handling the initial ingestion of an invoice. It simulates a file upload and saves the invoice's metadata to a MongoDB database.
-
-```mermaid
-graph TD
-    U[Client] -- REST API --> O[FastAPI Orchestrator];
-    O -- gRPC --> I[Ingestion Agent];
-    I -- writes to --> MDB[(MongoDB)];
-```
+The system is a self-contained Python package that simulates a microservice architecture locally. A **FastAPI Gateway** serves as the entry point, and a **LangGraph Orchestrator** manages a strictly sequential workflow. The orchestrator calls a series of local "MCP Server" agents to perform specific tasks:
+-   **DataStoreAgent**: Manages all database operations (MongoDB/PostgreSQL).
+-   **OCRAgent**: Performs mock data extraction.
+-   **SchemaMapperAgent**: Maps extracted data to a canonical schema.
+-   **ValidationAgent**: Runs a detailed, rule-based validation checklist against the data and calculates a reliability score.
+-   **DataIntegrationAgent**: Transforms the validated data into an ERP-ready format.
 
 ## 2. Getting Started
 
 ### Prerequisites
 -   Python 3.12+
 -   `pip` for package management
--   A running MongoDB instance.
+-   **PostgreSQL and MongoDB**: The `DataStoreAgent` requires connections to these databases. Ensure they are running locally or accessible.
 
 ### Quick Start
-
-1.  **Clone the repository**.
-2.  **Install dependencies**:
-    ```bash
-    pip install -r requirements.txt
-    ```
-3.  **Configure the environment**:
-    ```bash
-    cp InvoiceCoreProcessor/.env.example InvoiceCoreProcessor/.env
-    ```
-    -   **Important**: Open `InvoiceCoreProcessor/.env` and ensure the `MONGODB_URI` is correct for your local or cloud MongoDB instance.
+1.  **Install dependencies**: `pip install -r requirements.txt`
+2.  **Configure the environment**:
+    -   Copy `.env.example` to `.env`.
+    -   Update the `MONGODB_URI` and `POSTGRES_URI` with your database connection strings.
+    -   (Optional) Add an `OPENAI_API_KEY` if you plan to replace the mock logic.
+3.  **Set up the database schema**:
+    -   Execute the SQL commands in `InvoiceCoreProcessor/database/schema.sql` against your PostgreSQL database to create the necessary tables and rules.
 4.  **Run the application**:
-    The easiest way to run the entire system is to use the end-to-end test script. This will start both the orchestrator and the ingestion agent.
     ```bash
-    python e2e_test.py
+    python main_processor.py
     ```
-    The orchestrator will be available at `http://localhost:8080`.
+    The FastAPI gateway will be available at `http://localhost:8080`.
 
 ## 3. Configuration
+All configuration is managed via the `.env` file and loaded by `InvoiceCoreProcessor/config/settings.py`.
 
-Configuration is managed via environment variables in the `InvoiceCoreProcessor/.env` file.
+## 4. Key Components
+-   **`main_processor.py`**: The FastAPI entry point.
+-   **`core/workflow.py`**: The LangGraph state machine definition.
+-   **`servers/*.py`**: The implementations of the MCP Agent Servers.
+-   **`services/*.py`**: The core, stateless business logic for each function.
+-   **`database/schema.sql`**: The PostgreSQL schema for the validation engine.
+-   **`core/rule_engine.py`**: The engine that runs the validation checklist and scoring.
 
-| Variable                 | Description                             | Default                   |
-| ------------------------ | --------------------------------------- | ------------------------- |
-| `APP_HOST` / `_PORT`     | Host/port for the FastAPI orchestrator. | `0.0.0.0:8080`            |
-| `INGESTION_SERVICE_HOST` / `_PORT` | Host/port for the Ingestion Agent.      | `localhost:50051`         |
-| `MONGODB_URI`            | The full connection string for MongoDB. | `mongodb://localhost:27017/`|
-| `MONGODB_DATABASE`       | The name of the database to use.        | `InvoiceProcessorDB`      |
-| `MONGODB_COLLECTION`     | The name of the collection to use.      | `invoices`                |
-
-## 4. API & Contracts
-
--   **REST API**:
-    -   `POST /invoice/upload`: The main entry point. See the `main.py` file for the `InvoiceIngestionRequest` model.
--   **gRPC API**:
-    -   The contract for the `IngestionAgent` is defined in `InvoiceCoreProcessor/protos/ingestion.proto`.
-
-## 5. Testing
--   An end-to-end test is provided in `e2e_test.py`. It starts both services, calls the API, and verifies that the file is "uploaded" and the metadata is stored in MongoDB.
+## 5. Workflow Sequence
+The system follows a strict, gated sequence:
+`Ingestion` -> `OCR` -> `Mapping` -> `Validation` -> `Data Integration`
+Each step must return a successful `status` for the workflow to proceed. Failures are routed to an error or manual review state.

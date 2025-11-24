@@ -1,8 +1,8 @@
 fastapi
 uvicorn
-grpcio
-grpcio-tools
 langgraph
 pydantic
-python-dotenv
+pydantic-settings
 pymongo
+psycopg2-binary
+# Add MCP/A2A SDK stubs here if they were real packages
