@@ -21,26 +21,19 @@ This document provides a detailed technical description of the `InvoiceCoreProce
     -   FastAPI (for the REST API Orchestrator)
     -   LangGraph (for workflow orchestration)
     -   `grpcio` (for the microservice framework)
+-   **Configuration**: `python-dotenv`
 
 ### 2.2 Storage
 -   **Databases**: The system is designed for PostgreSQL (structured data) and MongoDB (unstructured data), though the current implementation uses in-memory mocks.
--   **ORMs**: None currently, but SQLAlchemy would be the standard choice for PostgreSQL.
 
 ### 2.3 Messaging
 -   gRPC is used for all synchronous, internal service-to-service communication.
 
-### 2.4 Integrations
--   The system is designed to integrate with external accounting systems (Tally, Zoho Books) in the future.
-
-### 2.5 Dev Tools
+### 2.4 Dev Tools
 -   **Dependency Management**: `pip` with `requirements.txt`.
--   **Environment Config**: `python-dotenv`.
--   **Testing Frameworks**: The E2E test uses the `requests` library. `pytest` would be used for unit tests.
--   **Linting/Formatting**: Not yet configured, but `ruff` and `black` are recommended.
+-   **Testing Frameworks**: The E2E test uses the `requests` library.
 
 ## 3. Repository Structure
-
-The project is a monorepo containing the orchestrator and all microservices.
 
 ```
 /
@@ -83,8 +76,6 @@ Configuration is managed via a `.env` file in the `InvoiceCoreProcessor` directo
 | `APP_HOST`               | Host for the FastAPI app.        | No       | `0.0.0.0`   |
 | `APP_PORT`               | Port for the FastAPI app.        | No       | `8080`      |
 
-Secrets (like production database URLs) must be stored in the `.env` file and **never** committed to the repository.
-
 ## 5. APIs
 
 ### 5.1 REST Endpoint
@@ -119,12 +110,12 @@ Internal communication is handled via gRPC. The contracts are defined in `Invoic
 
 ## 6. Internal Architecture
 
-### Core Components (Orchestrator)
+### 6.1 Core Components (Orchestrator)
 -   **FastAPI App (`main.py`)**: Defines the `/invoice/upload` endpoint. Its primary role is to receive requests, manage the gRPC client lifecycle, and invoke the workflow.
 -   **LangGraph Workflow (`main.py`)**: A state machine that defines the invoice processing pipeline. Each node in the graph represents a step (e.g., `schema_mapping`, `validation_flagging`).
 -   **MCPClient (`mcp_client.py`)**: Acts as an **Adapter** to the gRPC microservices. It encapsulates the gRPC channel and stub logic and, critically, handles the serialization/deserialization between the internal Pydantic `models` and the wire-format Protobuf messages.
 
-### Internal Flow
+### 6.2 Internal Flow
 The workflow is orchestrated by LangGraph within a single API call.
 
 ```mermaid
@@ -135,7 +126,7 @@ sequenceDiagram
     participant Microservices
 
     main.py (Endpoint)->>+main.py (LangGraph): invoke(request)
-    main.py (LangGraph)->>main.py (LangGraph): Node: upload_and_extract
+    main.py (LangGraph)->>main.py (LangGraph): Node: upload_and_extract (Mock Data)
     main.py (LangGraph)->>+mcp_client.py: call_mapper(PydanticModel)
     mcp_client.py->>mcp_client.py: Pydantic -> Protobuf
     mcp_client.py->>+Microservices: gRPC: MapSchema
@@ -163,47 +154,28 @@ class ExtractedInvoiceData(BaseModel):
     total_amount: float
     item_details: List[ItemDetail]
     confidence_score: float
-
-class MappedSchema(BaseModel):
-    tallyprime_schema: Dict[str, Any]
-    zoho_books_schema: Dict[str, Any]
 ```
 
 ## 8. Business Logic
 
 -   **Duplicate Detection**: Mocked in the `Agent` service by checking against a hardcoded list of invoice numbers. A real implementation would require a database lookup.
 -   **Anomaly Detection**: The `Agent` service flags invoices with a `total_amount` greater than 10,000 as `HIGH_VALUE_INVOICE`.
--   **Error Handling**: The orchestrator currently has minimal error handling. If a gRPC call fails, the `MCPClient` returns `None`, and the workflow raises a `ConnectionError`, causing the API to return a 500 error.
 
 ## 9. Security
 
 -   **Authentication**: None. Assumes a trusted internal network.
 -   **Authorization**: None.
--   **Input Sanitization**: Handled by FastAPI for the REST endpoint and by gRPC for the internal services.
--   **Logging Policies**: No PII is explicitly logged, but entire data objects are printed for debugging. This should be revised for production.
 
 ## 10. Testing
 
--   **E2E Tests (`e2e_test.py`)**: A single script that starts all services and the orchestrator, then sends requests to the API to verify the success and anomaly workflows. This is the primary method of quality assurance.
+-   **E2E Tests (`e2e_test.py`)**: A single script that starts all services and the orchestrator, then sends requests to the API to verify the success and anomaly workflows.
 -   **How to run**: `python e2e_test.py`
--   **Unit & Integration Tests**: Not yet implemented.
 
 ## 11. Local Development Setup
 
 1.  **Install Dependencies**: `pip install -r requirements.txt`
 2.  **Set up Environment**: `cp InvoiceCoreProcessor/.env.example InvoiceCoreProcessor/.env`
-3.  **Run Services**: The easiest way to run the entire system is using the end-to-end test script, which manages starting and stopping all processes.
+3.  **Run Services**: The easiest way to run the entire system is using the end-to-end test script.
     ```bash
     python e2e_test.py
     ```
-4.  **Run a Single Service (for debugging)**:
-    ```bash
-    # Make sure you are in the root directory of the repository
-    python -m InvoiceCoreProcessor.microservices.mapper.main
-    ```
-
-## 12. Deployment
-
--   **CI/CD Pipelines**: Not implemented.
--   **Infrastructure**: Each service is designed to be containerized into a Docker image. These images can be deployed to a container orchestrator like Kubernetes.
--   **Rollback Procedure**: Not defined. Standard Kubernetes deployment strategies (e.g., rolling updates) would apply.

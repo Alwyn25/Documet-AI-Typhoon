@@ -26,7 +26,7 @@ from . import common_pb2 as common__pb2
 from . import datastore_pb2 as datastore__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0b\x61gent.proto\x1a\x0c\x63ommon.proto\x1a\x0f\x64\x61tastore.proto\"I\n\x11ValidationRequest\x12\x34\n\x0e\x65xtracted_data\x18\x01 \x01(\x0b\x32\x1c.common.ExtractedInvoiceData\"W\n\x10ValidationResult\x12,\n\x11validation_status\x18\x01 \x01(\x0e\x32\x11.ValidationStatus\x12\x15\n\ranomaly_flags\x18\x02 \x03(\t2?\n\x05\x41gent\x12\x36\n\rFlagAnomalies\x12\x12.ValidationRequest\x1a\x11.ValidationResultb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0b\x61gent.proto\x1a\x0c\x63ommon.proto\x1a\x0f\x64\x61tastore.proto\"Z\n\x11ValidationRequest\x12\x34\n\x0e\x65xtracted_data\x18\x01 \x01(\x0b\x32\x1c.common.ExtractedInvoiceData\x12\x0f\n\x07user_id\x18\x02 \x01(\t\"W\n\x10ValidationResult\x12,\n\x11validation_status\x18\x01 \x01(\x0e\x32\x11.ValidationStatus\x12\x15\n\ranomaly_flags\x18\x02 \x03(\t2?\n\x05\x41gent\x12\x36\n\rFlagAnomalies\x12\x12.ValidationRequest\x1a\x11.ValidationResultb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -34,9 +34,9 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'agent_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_VALIDATIONREQUEST']._serialized_start=46
-  _globals['_VALIDATIONREQUEST']._serialized_end=119
-  _globals['_VALIDATIONRESULT']._serialized_start=121
-  _globals['_VALIDATIONRESULT']._serialized_end=208
-  _globals['_AGENT']._serialized_start=210
-  _globals['_AGENT']._serialized_end=273
+  _globals['_VALIDATIONREQUEST']._serialized_end=136
+  _globals['_VALIDATIONRESULT']._serialized_start=138
+  _globals['_VALIDATIONRESULT']._serialized_end=225
+  _globals['_AGENT']._serialized_start=227
+  _globals['_AGENT']._serialized_end=290
 # @@protoc_insertion_point(module_scope)
