@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from . import datastore_pb2 as datastore__pb2
+from . import ingestion_pb2 as ingestion__pb2
 
 GRPC_GENERATED_VERSION = '1.76.0'
 GRPC_VERSION = grpc.__version__
@@ -18,16 +18,15 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + ' but the generated code in datastore_pb2_grpc.py depends on'
+        + ' but the generated code in ingestion_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
     )
 
 
-class DataStoreStub(object):
-    """The gRPC service definition for the DataStore.
-    """
+class IngestionAgentStub(object):
+    """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
         """Constructor.
@@ -35,45 +34,43 @@ class DataStoreStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.StoreValidatedInvoice = channel.unary_unary(
-                '/DataStore/StoreValidatedInvoice',
-                request_serializer=datastore__pb2.StoreRequest.SerializeToString,
-                response_deserializer=datastore__pb2.StoreResult.FromString,
+        self.IngestInvoice = channel.unary_unary(
+                '/IngestionAgent/IngestInvoice',
+                request_serializer=ingestion__pb2.IngestRequest.SerializeToString,
+                response_deserializer=ingestion__pb2.IngestResponse.FromString,
                 _registered_method=True)
 
 
-class DataStoreServicer(object):
-    """The gRPC service definition for the DataStore.
-    """
+class IngestionAgentServicer(object):
+    """Missing associated documentation comment in .proto file."""
 
-    def StoreValidatedInvoice(self, request, context):
+    def IngestInvoice(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
 
-def add_DataStoreServicer_to_server(servicer, server):
+def add_IngestionAgentServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'StoreValidatedInvoice': grpc.unary_unary_rpc_method_handler(
-                    servicer.StoreValidatedInvoice,
-                    request_deserializer=datastore__pb2.StoreRequest.FromString,
-                    response_serializer=datastore__pb2.StoreResult.SerializeToString,
+            'IngestInvoice': grpc.unary_unary_rpc_method_handler(
+                    servicer.IngestInvoice,
+                    request_deserializer=ingestion__pb2.IngestRequest.FromString,
+                    response_serializer=ingestion__pb2.IngestResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'DataStore', rpc_method_handlers)
+            'IngestionAgent', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('DataStore', rpc_method_handlers)
+    server.add_registered_method_handlers('IngestionAgent', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
-class DataStore(object):
-    """The gRPC service definition for the DataStore.
-    """
+class IngestionAgent(object):
+    """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def StoreValidatedInvoice(request,
+    def IngestInvoice(request,
             target,
             options=(),
             channel_credentials=None,
@@ -86,9 +83,9 @@ class DataStore(object):
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/DataStore/StoreValidatedInvoice',
-            datastore__pb2.StoreRequest.SerializeToString,
-            datastore__pb2.StoreResult.FromString,
+            '/IngestionAgent/IngestInvoice',
+            ingestion__pb2.IngestRequest.SerializeToString,
+            ingestion__pb2.IngestResponse.FromString,
             options,
             channel_credentials,
             insecure,

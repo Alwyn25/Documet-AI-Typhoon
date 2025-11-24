@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+message IngestRequest {
+    string invoice_path = 1;
+    string user_id = 2;
+}
+
+message IngestResponse {
+    bool success = 1;
+    string message = 2;
+    string document_id = 3;
+}
+
+service IngestionAgent {
+    rpc IngestInvoice(IngestRequest) returns (IngestResponse);
+}

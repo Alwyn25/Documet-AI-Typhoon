@@ -1,123 +1,64 @@
-# InvoiceCoreProcessor System
+# InvoiceCoreProcessor - Ingestion Service
 
-This repository contains the `InvoiceCoreProcessor`, a distributed system for automated invoice data extraction and processing. It consists of a central orchestrator and several backend gRPC microservices.
+This project is the first step in building a distributed invoice processing system. It currently consists of a **FastAPI Orchestrator** and a backend **gRPC Ingestion Agent**.
 
-## 1. Overview
+## 1. Architecture
 
--   **Purpose**: The `InvoiceCoreProcessor` system automates the full lifecycle of invoice processing, from document upload and AI-driven data extraction to validation and final storage.
--   **Place in System**: This system serves as the core engine for invoice data handling within a larger accounting platform. It receives raw invoice files and produces validated, structured data ready for accounting system integration.
--   **Boundaries**:
-    -   **Owns**: The logic for orchestrating the invoice processing workflow, the rules for data validation (e.g., duplicate checks, high-value flags), the mapping of extracted data to accounting schemas, and the storage of the final validated record.
-    -   **Does Not Own**: User identity and authentication, frontend UI, or direct integration with third-party accounting systems (it produces data *for* them).
-
-## 2. Architecture
-
-The system is built on a microservice architecture. A central **FastAPI Orchestrator** manages the workflow using LangGraph, making gRPC calls to specialized backend services.
-
--   **Sync APIs**:
-    -   A primary REST endpoint (`POST /invoice/upload`) on the FastAPI Orchestrator to ingest new invoices.
-    -   gRPC services for internal request/response communication.
--   **Async Interfaces**: None currently implemented.
--   **Dependencies**:
-    -   **Mapper Service (gRPC)**: Maps extracted data to accounting schemas.
-    -   **Agent Service (gRPC)**: Validates data and flags anomalies.
-    -   **DataStore Service (gRPC)**: Persists validated data.
-    -   **Databases (Conceptual)**: The DataStore service is designed to connect to PostgreSQL (for structured data) and MongoDB (for document storage), though the current implementation uses in-memory mocks.
-
-### Architecture Diagram
+The current architecture is a simple, two-service system:
+-   **FastAPI Orchestrator**: Exposes a public REST API (`/invoice/upload`) and manages the business workflow using LangGraph.
+-   **Ingestion Agent (gRPC)**: A microservice responsible for handling the initial ingestion of an invoice. It simulates a file upload and saves the invoice's metadata to a MongoDB database.
 
 ```mermaid
 graph TD
-    subgraph "InvoiceCoreProcessor System"
-        A[FastAPI Orchestrator] -- gRPC Call --> B[Mapper Service];
-        A -- gRPC Call --> C[Agent Service];
-        A -- gRPC Call --> D[DataStore Service];
-        D -- writes to --> E[(PostgreSQL)];
-        D -- writes to --> F[(MongoDB)];
-    end
-
-    U[User/Client] -- REST API --> A;
-
-    style E fill:#f9f,stroke:#333,stroke-width:2px
-    style F fill:#f9f,stroke:#333,stroke-width:2px
+    U[Client] -- REST API --> O[FastAPI Orchestrator];
+    O -- gRPC --> I[Ingestion Agent];
+    I -- writes to --> MDB[(MongoDB)];
 ```
 
-## 3. Getting Started
+## 2. Getting Started
 
 ### Prerequisites
-
 -   Python 3.12+
 -   `pip` for package management
+-   A running MongoDB instance.
 
 ### Quick Start
 
 1.  **Clone the repository**.
-2.  **Set up the environment**:
+2.  **Install dependencies**:
     ```bash
-    # Install all required Python packages
     pip install -r requirements.txt
-
-    # Create a local environment file from the example
+    ```
+3.  **Configure the environment**:
+    ```bash
     cp InvoiceCoreProcessor/.env.example InvoiceCoreProcessor/.env
     ```
-3.  **Run the end-to-end test script**:
-    This script will automatically start the orchestrator and all microservices in the correct order.
+    -   **Important**: Open `InvoiceCoreProcessor/.env` and ensure the `MONGODB_URI` is correct for your local or cloud MongoDB instance.
+4.  **Run the application**:
+    The easiest way to run the entire system is to use the end-to-end test script. This will start both the orchestrator and the ingestion agent.
     ```bash
     python e2e_test.py
     ```
-    If the tests pass, the full system is running correctly. The orchestrator is available at `http://localhost:8080`.
+    The orchestrator will be available at `http://localhost:8080`.
 
-### Configuration
+## 3. Configuration
 
-Configuration is managed via environment variables loaded from the `InvoiceCoreProcessor/.env` file.
+Configuration is managed via environment variables in the `InvoiceCoreProcessor/.env` file.
 
-| Variable                 | Description                                    | Required | Default     |
-| ------------------------ | ---------------------------------------------- | -------- | ----------- |
-| `MAPPER_SERVICE_HOST`    | Hostname for the Mapper gRPC service.          | No       | `localhost` |
-| `MAPPER_SERVICE_PORT`    | Port for the Mapper gRPC service.              | No       | `50051`     |
-| `AGENT_SERVICE_HOST`     | Hostname for the Agent gRPC service.           | No       | `localhost` |
-| `AGENT_SERVICE_PORT`     | Port for the Agent gRPC service.               | No       | `50052`     |
-| `DATASTORE_SERVICE_HOST` | Hostname for the DataStore gRPC service.       | No       | `localhost` |
-| `DATASTORE_SERVICE_PORT` | Port for the DataStore gRPC service.           | No       | `50053`     |
-| `APP_HOST`               | Host for the main FastAPI Orchestrator.        | No       | `0.0.0.0`   |
-| `APP_PORT`               | Port for the main FastAPI Orchestrator.        | No       | `8080`      |
-
-### Database
-
-The `DataStore` service is currently mocked to use in-memory Python dictionaries. For a real deployment, you would configure the `POSTGRES_DB_URL` and `MONGO_DB_URL` variables in the `.env` file and implement the database connection logic. Migrations would be handled by a standard tool like `alembic`.
+| Variable                 | Description                             | Default                   |
+| ------------------------ | --------------------------------------- | ------------------------- |
+| `APP_HOST` / `_PORT`     | Host/port for the FastAPI orchestrator. | `0.0.0.0:8080`            |
+| `INGESTION_SERVICE_HOST` / `_PORT` | Host/port for the Ingestion Agent.      | `localhost:50051`         |
+| `MONGODB_URI`            | The full connection string for MongoDB. | `mongodb://localhost:27017/`|
+| `MONGODB_DATABASE`       | The name of the database to use.        | `InvoiceProcessorDB`      |
+| `MONGODB_COLLECTION`     | The name of the collection to use.      | `invoices`                |
 
 ## 4. API & Contracts
 
-### REST API
+-   **REST API**:
+    -   `POST /invoice/upload`: The main entry point. See the `main.py` file for the `InvoiceIngestionRequest` model.
+-   **gRPC API**:
+    -   The contract for the `IngestionAgent` is defined in `InvoiceCoreProcessor/protos/ingestion.proto`.
 
-The primary entry point to the system.
-
--   **Endpoint**: `POST /invoice/upload`
--   **Request Body**:
-    ```json
-    {
-      "raw_file_ref": "/path/to/invoice.pdf",
-      "user_id": "user-123"
-    }
-    ```
--   **Success Response**:
-    ```json
-    {
-      "status": "Workflow completed",
-      "final_state": "SUCCESS: Invoice processed and stored."
-    }
-    ```
-
-### gRPC API
-
-The internal communication between the orchestrator and the microservices is handled by gRPC.
--   **Protobuf Definitions**: The service and message contracts are defined in the `.proto` files located in [`InvoiceCoreProcessor/protos/`](./InvoiceCoreProcessor/protos/).
-
-## 5. Testing & Quality
-
--   **End-to-End Tests**: The primary method of testing. Run the full system test with:
-    ```bash
-    python e2e_test.py
-    ```
--   **Unit Tests**: Not yet implemented. `pytest` would be the standard tool.
--   **Linting**: Not configured, but `ruff` and `black` are recommended for future use.
+## 5. Testing
+-   An end-to-end test is provided in `e2e_test.py`. It starts both services, calls the API, and verifies that the file is "uploaded" and the metadata is stored in MongoDB.
