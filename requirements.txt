@@ -1,9 +1,8 @@
-python-dotenv
-pydantic-settings
-requests
+fastapi
 uvicorn
 grpcio
 grpcio-tools
 langgraph
 pydantic
-fastapi
+python-dotenv
+pymongo
