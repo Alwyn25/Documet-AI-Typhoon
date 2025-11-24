@@ -7,6 +7,7 @@ import "datastore.proto"; // For ValidationStatus enum
 // Request to the validation agent. It contains the data to be validated.
 message ValidationRequest {
     common.ExtractedInvoiceData extracted_data = 1;
+    string user_id = 2; // Added for more context in validation
 }
 
 // Result from the validation agent.

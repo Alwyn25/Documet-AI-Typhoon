@@ -92,7 +92,6 @@ The `DataStore` service is currently mocked to use in-memory Python dictionaries
 
 The primary entry point to the system.
 
--   **OpenAPI Docs**: Not yet implemented, but can be added to the FastAPI app.
 -   **Endpoint**: `POST /invoice/upload`
 -   **Request Body**:
     ```json
@@ -114,21 +113,7 @@ The primary entry point to the system.
 The internal communication between the orchestrator and the microservices is handled by gRPC.
 -   **Protobuf Definitions**: The service and message contracts are defined in the `.proto` files located in [`InvoiceCoreProcessor/protos/`](./InvoiceCoreProcessor/protos/).
 
-## 5. Observability & Ops
-
--   **Logging**: All services output plaintext logs to `stdout`. The format is not standardized JSON yet.
--   **Metrics**: No Prometheus `/metrics` endpoint is exposed yet.
--   **Tracing**: No distributed tracing (e.g., OpenTelemetry) is implemented.
--   **Health & Readiness**: No health check endpoints (`/health`, `/ready`) are implemented yet. These are critical additions for a production environment.
-
-## 6. Security & Compliance
-
--   **Authentication**: There is no service-to-service authentication. The system assumes it runs within a trusted internal network.
--   **Authorization**: No authorization model is currently in place.
--   **Secrets**: Secrets (like database URLs) should be managed via the `.env` file, which should **never** be committed to the repository.
--   **Data Classification**: The service handles potentially sensitive financial data from invoices.
-
-## 7. Testing & Quality
+## 5. Testing & Quality
 
 -   **End-to-End Tests**: The primary method of testing. Run the full system test with:
     ```bash
@@ -136,15 +121,3 @@ The internal communication between the orchestrator and the microservices is han
     ```
 -   **Unit Tests**: Not yet implemented. `pytest` would be the standard tool.
 -   **Linting**: Not configured, but `ruff` and `black` are recommended for future use.
-
-## 8. Failure Modes & Troubleshooting
-
--   **Connection Refused Errors**: This typically means one or more of the microservices failed to start. Check the logs from the `e2e_test.py` script for `ModuleNotFoundError` or other startup errors.
--   **`ImportError: attempted relative import with no known parent package`**: This occurs if you run a service file directly (`python .../main.py`) instead of as a module. Use `python -m <package>.<module>` to run services.
--   **Debug Logging**: All services print their status to `stdout`. For more detailed debugging, add more `print` statements to the relevant service.
-
-## 9. Contribution Guide
-
--   **Branching**: Please use feature branches (e.g., `feat/add-health-checks`).
--   **Commits**: Follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specification.
--   **Code Review**: All changes must be submitted via a Pull Request and approved by at least one other developer.

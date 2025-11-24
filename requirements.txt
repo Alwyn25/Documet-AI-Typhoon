@@ -1,1 +1,9 @@
 python-dotenv
+pydantic-settings
+requests
+uvicorn
+grpcio
+grpcio-tools
+langgraph
+pydantic
+fastapi

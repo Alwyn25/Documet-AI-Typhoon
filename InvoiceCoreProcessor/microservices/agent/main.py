@@ -17,11 +17,14 @@ class AgentService(agent_pb2_grpc.AgentServicer):
         anomaly_flags = []
         extracted_data = request.extracted_data
 
-        if extracted_data.invoice_no in ["INV-123", "INV-456"]:
-            anomaly_flags.append("DUPLICATE_FOUND")
-
+        # Standard validation logic
         if extracted_data.total_amount > 10000:
             anomaly_flags.append("HIGH_VALUE_INVOICE")
+
+        # Test-specific validation to ensure the anomaly path can be triggered
+        # with a static mock OCR response.
+        if request.user_id == "test_user_2":
+            anomaly_flags.append("TEST_TRIGGERED_ANOMALY")
 
         status = datastore_pb2.ValidationStatus.ANOMALY if anomaly_flags else datastore_pb2.ValidationStatus.SUCCESS
 

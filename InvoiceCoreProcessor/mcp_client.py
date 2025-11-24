@@ -16,35 +16,27 @@ from .models import (
 )
 from google.protobuf.json_format import ParseDict, MessageToDict
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables
+load_dotenv('InvoiceCoreProcessor/.env')
 
 class MCPClient:
-    """
-    A gRPC client that interacts with the microservices.
-    It handles the conversion between internal Pydantic models and external Protobuf messages.
-    """
+    """A gRPC client that interacts with all microservices."""
     def __init__(self):
-        # Read service configurations from environment variables
-        mapper_host = os.getenv("MAPPER_SERVICE_HOST", "localhost")
-        mapper_port = os.getenv("MAPPER_SERVICE_PORT", "50051")
-        agent_host = os.getenv("AGENT_SERVICE_HOST", "localhost")
-        agent_port = os.getenv("AGENT_SERVICE_PORT", "50052")
-        datastore_host = os.getenv("DATASTORE_SERVICE_HOST", "localhost")
-        datastore_port = os.getenv("DATASTORE_SERVICE_PORT", "50053")
-
-        mapper_address = f"{mapper_host}:{mapper_port}"
-        agent_address = f"{agent_host}:{agent_port}"
-        datastore_address = f"{datastore_host}:{datastore_port}"
-
-        self.mapper_channel = grpc.insecure_channel(mapper_address)
-        self.agent_channel = grpc.insecure_channel(agent_address)
-        self.datastore_channel = grpc.insecure_channel(datastore_address)
+        self.mapper_channel = self._create_channel("MAPPER_SERVICE")
+        self.agent_channel = self._create_channel("AGENT_SERVICE")
+        self.datastore_channel = self._create_channel("DATASTORE_SERVICE")
 
         self.mapper_stub = mapper_pb2_grpc.MapperStub(self.mapper_channel)
         self.agent_stub = agent_pb2_grpc.AgentStub(self.agent_channel)
         self.datastore_stub = datastore_pb2_grpc.DataStoreStub(self.datastore_channel)
-        print(f"MCPClient: gRPC channels initialized for Mapper ({mapper_address}), Agent ({agent_address}), and DataStore ({datastore_address}).")
+        print("MCPClient: All gRPC channels initialized.")
+
+    def _create_channel(self, service_prefix: str):
+        host = os.getenv(f"{service_prefix}_HOST", "localhost")
+        port = os.getenv(f"{service_prefix}_PORT")
+        address = f"{host}:{port}"
+        print(f"  - Initializing channel for {service_prefix} at {address}")
+        return grpc.insecure_channel(address)
 
     def call_mapper(self, extracted_data: ExtractedInvoiceData) -> MappedSchema:
         print("MCPClient: Calling Mapper service...")
@@ -52,20 +44,17 @@ class MCPClient:
             proto_request = common_pb2.ExtractedInvoiceData()
             ParseDict(extracted_data.model_dump(), proto_request)
             proto_response = self.mapper_stub.MapSchema(proto_request)
-            return MappedSchema(
-                tallyprime_schema=json.loads(proto_response.tallyprime_schema),
-                zoho_books_schema=json.loads(proto_response.zoho_books_schema)
-            )
+            return MappedSchema(tallyprime_schema=json.loads(proto_response.tallyprime_schema), zoho_books_schema=json.loads(proto_response.zoho_books_schema))
         except grpc.RpcError as e:
             print(f"MCPClient: Error calling Mapper service: {e.status()}")
             return None
 
-    def call_agent(self, extracted_data: ExtractedInvoiceData) -> ValidationResult:
+    def call_agent(self, extracted_data: ExtractedInvoiceData, user_id: str) -> ValidationResult:
         print("MCPClient: Calling Agent service...")
         try:
             proto_extracted_data = common_pb2.ExtractedInvoiceData()
             ParseDict(extracted_data.model_dump(), proto_extracted_data)
-            proto_request = agent_pb2.ValidationRequest(extracted_data=proto_extracted_data)
+            proto_request = agent_pb2.ValidationRequest(extracted_data=proto_extracted_data, user_id=user_id)
             proto_response = self.agent_stub.FlagAnomalies(proto_request)
             response_dict = MessageToDict(proto_response, preserving_proto_field_name=True)
             response_dict['validation_status'] = datastore_pb2.ValidationStatus.Name(proto_response.validation_status)
@@ -91,4 +80,4 @@ class MCPClient:
         self.mapper_channel.close()
         self.agent_channel.close()
         self.datastore_channel.close()
-        print("MCPClient: gRPC channels closed.")
+        print("MCPClient: All gRPC channels closed.")
